@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-## Copyright (C) 2015 ioerror / iostreams
+## Copyright (C) 2015-2018 ioerror / iostreams
 ## https://github.com/iostreams/kursy-walut
 ##
 ## This program is free software: you can redistribute it and/or modify
@@ -16,43 +16,41 @@
 ## You should have received a copy of the GNU General Public License
 ## along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-url='https://www.walutomat.pl/'
-waluty = ('EUR', 'USD', 'GBP', 'CHF')
-ua='Mozilla/5.0 (compatible; MSIE 10.0; Windows NT 6.1; WOW64; Trident/6.0)'
+import sys
+import urllib.request
+import json
+
+url = 'https://panel.walutomat.pl/api/v1/best_offers.php'
+currencies = ('EUR', 'USD', 'GBP', 'CHF')
+ua = 'Mozilla/5.0 (compatible; MSIE 10.0; Windows NT 6.1; WOW64; Trident/6.0)'
 #########
 
-import sys, urllib.request
-from bs4 import BeautifulSoup
-
-if len(sys.argv) != 2 or sys.argv[1] not in waluty :
-    print('Użycie: ' + sys.argv[0] + ' EUR|USD|GBP|CHF', file=sys.stderr)
+if len(sys.argv) != 2 or sys.argv[1] not in currencies:
+    print('Użycie: ' + sys.argv[0] + ' ' + '|'.join(currencies), file=sys.stderr)
     sys.exit(11)
 
 currency = sys.argv[1]
 exchangeRate = ''
 
-try :
-    html = urllib.request.urlopen( urllib.request.Request(url, headers={'User-Agent' : ua}) ).read()
-except :
+try:
+    jsonOffers = urllib.request.urlopen(
+        urllib.request.Request(url, headers={'User-Agent': ua, 'Origin': 'https://www.walutomat.pl'})).read()
+except:
     print('Błąd pobierania kursu ze strony www', file=sys.stderr)
     sys.exit(12)
 
+try:
+    jsonOffers = json.loads(jsonOffers)
+    for offer in jsonOffers['offers']:
+        if offer['pair'] == currency + 'PLN':
+            exchangeRate = offer['sell']
+            break
+except:
+    print('Błąd json', file=sys.stderr)
+    sys.exit(14)
 
-soup = BeautifulSoup(html)
-tab_rates = soup.find(name='div', id='best_curr')
-
-if type(tab_rates).__name__ == 'Tag' :
-    for tags in tab_rates:
-        if type(tags).__name__ == 'Tag' :
-            tag = tags.find(name='span', attrs={ 'class' : 'pair' })
-            if type(tag).__name__ == 'Tag' and tag.text.find(currency+' / PLN') != -1 :
-                #curr1 - kurs kupna #curr2 kurs sprzedaży
-                exchangeRate = tags.find(name='span', attrs={ 'class' : 'curr2' }).text
-                break
-
-if (exchangeRate == '') :
+if exchangeRate == '':
     print('Błąd pobierania kursu', file=sys.stderr)
     sys.exit(13)
-else :
+else:
     print('Kurs', currency, '=', exchangeRate, 'zł')
-
